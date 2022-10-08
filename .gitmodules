@@ -1,0 +1,12 @@
+[submodule "vmemu"]
+	path = vmemu
+	url = https://github.com/xtremegamer1/vmemu
+[submodule "deps/deps"]
+	path = deps/deps
+	url = https://github.com/xtremegamer1/vmemu
+[submodule "deps/vmemu"]
+	path = deps/vmemu
+	url = https://github.com/xtremegamer1/vmemu
+[submodule "deps/VTIL-Core"]
+	path = deps/VTIL-Core
+	url = https://github.com/vtil-project/VTIL-Core
