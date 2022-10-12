@@ -1,5 +1,5 @@
 #include <vtil\vtil>
-#include <devirt-file.hpp>
+#include <vmemu_t.hpp>
 #include <vector>
 
 namespace vm
@@ -7,11 +7,15 @@ namespace vm
 class lifter
 {
   public:
-  lifter(std::vector<uint8_t> bytecode, std::uintptr_t initial_vip);
-  lifter(std::ifstream& devirt_file);
+  lifter(const vm::instrs::vrtn_t* const routine);
   bool lift();
+  const vtil::routine& get_routine();  
   private:
-  vtil::basic_block* block;
-  std::vector<uint8_t> vm_bytecode;
+  const vm::instrs::vrtn_t* const vmp_routine;
+  vtil::routine* vtil_routine;
+  vtil::basic_block* current_block;
+  uint64_t reg_id;
+  vtil::register_desc* scratch_regs[32];
+  void lift_handler(vm::instrs::vinstr_t v_instr);
 };
 }

@@ -111,7 +111,7 @@ int __cdecl main(int argc, const char *argv[])
           "protected with VMProtect 3...\n");
       return -1;
     }
-    vm::emu_t emu(&vmctx, true);
+    vm::emu_t emu(&vmctx);
     if (!emu.init())
     {
       std::printf(
@@ -133,8 +133,6 @@ int __cdecl main(int argc, const char *argv[])
                               .append("-")
                               .append(std::to_string(vm_entry_rva))
                               .append(".devirt");
-    std::ofstream output_file(module_name.c_str());
-    output_file.write(reinterpret_cast<const char *>(emu.get_il_bytecode().data()), emu.get_il_bytecode().size());
   }
   //std::ofstream output_file(module_name.c_str());
   //output_file.write(reinterpret_cast<const char *>(emu.get_il_bytecode().data()), emu.get_il_bytecode().size());
