@@ -1,4 +1,5 @@
 ﻿#include <vmdevirt-vtil.hpp>
+
 int __cdecl main(int argc, const char *argv[])
 {
   argparse::argument_parser_t parser("VMProtect 3 Static Devirtualization",
@@ -95,12 +96,15 @@ int __cdecl main(int argc, const char *argv[])
     auto vm_entries =  vm::locate::get_vm_entries(module_base, image_size);
     std::for_each(vm_entries.begin(), vm_entries.end(),
                                       [&](const vm::locate::vm_enter_t& vmenter) {
-                                        std::printf("Discovered vmenter at rva: %p\n", vmenter.rva);
+                                        static int vmenter_count = 0;
+                                        std::printf("[%.4d]  Discovered vmenter at rva: %p\n", 
+                                                    ++vmenter_count, vmenter.rva);
                                         vm_entry_rvas.emplace_back(vmenter.rva);
                                       });
   }
   for (const auto& vm_entry_rva : vm_entry_rvas)
   {
+    static int index = 0;
     vm::vmctx_t vmctx(module_base, image_base, image_size, vm_entry_rva);
     if (!vmctx.init())
     {
