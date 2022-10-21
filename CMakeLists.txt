@@ -49,6 +49,7 @@ list(APPEND vmdevirt-vtil_SOURCES
 	"include/cli-parser.hpp"
 	"include/vm-lifter.hpp"
 	"include/vmdevirt-vtil.hpp"
+	"include/zyreg_to_register_desc.hpp"
 )
 
 list(APPEND vmdevirt-vtil_SOURCES
