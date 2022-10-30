@@ -44,6 +44,7 @@ set(CMKR_TARGET vmdevirt-vtil)
 set(vmdevirt-vtil_SOURCES "")
 
 list(APPEND vmdevirt-vtil_SOURCES
+	"src/lifters.cpp"
 	"src/vm-lifter.cpp"
 	"src/vmdevirt-vtil.cpp"
 	"include/cli-parser.hpp"
