@@ -1,10 +1,10 @@
 #include <vm-lifter.hpp>
 
-#define lifter_lambda [](vtil::basic_block* block, vm::instrs::vinstr_t instr)
+#define LIFTER_LAMBDA [](vtil::basic_block* block, vm::instrs::vinstr_t instr)
 
 namespace vm::lifters
 {
-  fn_lifter add = lifter_lambda {
+  fn_lifter add = LIFTER_LAMBDA {
     auto [add_tmp_0, add_tmp_1, add_tmp_2] = block->tmp( instr.stack_size,
                                                                  instr.stack_size,
                                                                  instr.stack_size );
@@ -44,7 +44,7 @@ namespace vm::lifters
       ->push( add_tmp_1 )
       ->pushf();
   };
-  fn_lifter _and = lifter_lambda
+  fn_lifter _and = LIFTER_LAMBDA
   {
     auto [and_tmp_0, and_tmp_1, and_tmp_2] = block->tmp(64, instr.stack_size, instr.stack_size);
     block
@@ -59,7 +59,7 @@ namespace vm::lifters
       ->tl(FLAG_SF, and_tmp_2, 0)
       ->pushf();
   };
-  fn_lifter imul = lifter_lambda
+  fn_lifter imul = LIFTER_LAMBDA
   {
     
   }
