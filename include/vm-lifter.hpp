@@ -1,9 +1,21 @@
 #include <vtil\vtil>
 #include <vmemu_t.hpp>
 #include <vector>
+#include <functional>
 
 namespace vm
 {
+namespace lifters
+{  
+using fn_lifter = std::function<void(::vtil::basic_block*, ::vm::instrs::vinstr_t v_instr)>;
+static constexpr vtil::register_desc FLAG_CF = vtil::REG_FLAGS.select( 1, 0 );
+static constexpr vtil::register_desc FLAG_PF = vtil::REG_FLAGS.select( 1, 2 );
+static constexpr vtil::register_desc FLAG_AF = vtil::REG_FLAGS.select( 1, 4 );
+static constexpr vtil::register_desc FLAG_ZF = vtil::REG_FLAGS.select( 1, 6 );
+static constexpr vtil::register_desc FLAG_SF = vtil::REG_FLAGS.select( 1, 7 );
+static constexpr vtil::register_desc FLAG_DF = vtil::REG_FLAGS.select( 1, 10 );
+static constexpr vtil::register_desc FLAG_OF = vtil::REG_FLAGS.select( 1, 11 );
+}
 class lifter_t
 {
   public:
