@@ -102,6 +102,12 @@ int __cdecl main(int argc, const char *argv[])
                                         vm_entry_rvas.emplace_back(vmenter.rva);
                                       });
   }
+  std::filesystem::path routines_folder(parser.get<std::string>("bin"));
+  routines_folder = routines_folder.remove_filename() / "vms";
+  std::filesystem::path bin_name = std::filesystem::path(parser.get<std::string>("bin")).filename();
+  std::filesystem::remove_all(routines_folder);
+  std::filesystem::create_directory(routines_folder);
+
   for (const auto& vm_entry_rva : vm_entry_rvas)
   {
     static int index = 0;
@@ -132,12 +138,16 @@ int __cdecl main(int argc, const char *argv[])
     }
     std::printf("> traced %d virtual code blocks... \n", virt_rtn.m_blks.size());
     
-    std::string module_name =
-                        parser.get<std::string>("bin")
-                              .append("-")
-                              .append(std::to_string(vm_entry_rva))
-                              .append(".devirt");
+    vm::lifter_t lifter(&virt_rtn, &vmctx);
+    if (!lifter.lift())
+    {
+      std::printf(
+            "[!] failed to lift virtual routine to VTIL... read above in "
+            "the console for the reason...\n");
+      return -1;
+    }
+    auto save_to = routines_folder / (bin_name.string() + "-" + std::to_string(vm_entry_rva) + ".vtil");
+    std::ofstream stream(save_to.string());
+    vtil::save_routine(lifter.get_routine(), save_to);
   }
-  //std::ofstream output_file(module_name.c_str());
-  //output_file.write(reinterpret_cast<const char *>(emu.get_il_bytecode().data()), emu.get_il_bytecode().size());
 }

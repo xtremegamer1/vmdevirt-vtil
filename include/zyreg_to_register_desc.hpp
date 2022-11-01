@@ -2,7 +2,7 @@
 #include <Zydis\Zydis.h>
 
 //The index is a zyreg, the value at that index is a capreg
-x86_reg zyreg_to_capreg_map[]
+static constexpr x86_reg zyreg_to_capreg_map[]
 {
     X86_REG_INVALID,
 
