@@ -1,3 +1,4 @@
+#pragma once
 #include <zyreg_to_register_desc.hpp> //It is very important this be included before vtil/vtil so that the cast can be visible to vtil
 #include <vtil\vtil>
 #include <zyreg_to_register_desc.hpp>

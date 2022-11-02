@@ -1,3 +1,4 @@
+#pragma once
 #include <vtil\vtil>
 #include <Zydis\Zydis.h>
 

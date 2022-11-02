@@ -1,4 +1,5 @@
-﻿#include <cli-parser.hpp>
+﻿#pragma once
+#include <cli-parser.hpp>
 #include <fstream>
 #include <iostream>
 #include <thread>
