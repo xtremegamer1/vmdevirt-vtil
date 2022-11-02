@@ -291,5 +291,8 @@ void vm::lifter_t::lifter_vmexit(vm::instrs::vinstr_t instr)
 {
   for (auto it = vmentry_pushes.rbegin(); it != vmentry_pushes.rend(); it++)
     current_block->pop(*it);
-  current_block->vexit(vmp_routine->m_rva + img_base);
+  auto tmp = current_block->tmp(64);
+  current_block
+    ->pop(tmp)
+    ->vexit(tmp);
 };
