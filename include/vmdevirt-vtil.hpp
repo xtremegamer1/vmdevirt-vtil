@@ -4,3 +4,4 @@
 #include <thread>
 #include <vmemu_t.hpp>
 #include <vmlocate.hpp>
+#include <vm-lifter.hpp>
