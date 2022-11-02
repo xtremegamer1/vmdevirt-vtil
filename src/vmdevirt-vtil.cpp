@@ -147,7 +147,21 @@ int __cdecl main(int argc, const char *argv[])
       return -1;
     }
     auto save_to = routines_folder / (bin_name.string() + "-" + std::to_string(vm_entry_rva) + ".vtil");
-    std::ofstream stream(save_to.string());
     vtil::save_routine(lifter.get_routine(), save_to);
+    
+    save_to = routines_folder / (bin_name.string() + "-" + std::to_string(vm_entry_rva) + ".txt");
+    std::ofstream virtual_assembly(save_to);
+    for (auto it = virt_rtn.m_blks.begin(); it != virt_rtn.m_blks.end(); ++it)
+    {
+      virtual_assembly << "BLOCK_" << it - virt_rtn.m_blks.begin() << ":\n";
+      for (auto instr : it->m_vinstrs)
+      {
+        virtual_assembly << "SIZE:\t"<< std::dec  << +instr.stack_size << " " << vm::instrs::get_profile(instr.mnemonic)->name;
+        if (instr.imm.has_imm)
+          virtual_assembly << "\t" << std::hex << +instr.imm.val;
+        virtual_assembly << "\n";
+      }
+      virtual_assembly << '\n';
+    }
   }
 }
