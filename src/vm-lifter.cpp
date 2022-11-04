@@ -20,7 +20,7 @@ namespace vm
       current_block->push(zyreg);
     }
     //Load delta is pushed to the stack
-    current_block->push(load_delta);
+    current_block->push(vtil::make_imm<uint64_t>(0));
     vtil_routine = current_block->owner;
     //Lift the handlers basically
     for (const auto& blk : vmp_routine->m_blks)
