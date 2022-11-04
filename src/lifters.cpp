@@ -72,7 +72,7 @@ void vm::lifter_t::lifter_and(vm::instrs::vinstr_t instr)
 void vm::lifter_t::lifter_imul(vm::instrs::vinstr_t instr)
 {
   std::printf("This lifter is not implemented\n");    
-  exit(ERROR_CALL_NOT_IMPLEMENTED);
+  exit(-1);
 };
 void vm::lifter_t::lifter_jmp(vm::instrs::vinstr_t instr)
 {
@@ -85,7 +85,7 @@ void vm::lifter_t::lifter_lconst(vm::instrs::vinstr_t instr)
 {
   auto tmp = current_block->tmp(instr.imm.size);
   current_block
-    ->mov(tmp, instr.imm.val)
+    ->mov(tmp, vtil::make_imm(instr.imm.val))
     ->push(tmp); 
 };
 void vm::lifter_t::lifter_lcr0(vm::instrs::vinstr_t instr)
