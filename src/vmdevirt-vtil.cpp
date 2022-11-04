@@ -198,15 +198,17 @@ int __cdecl main(int argc, const char *argv[])
       assembly.size() - 5;
     *reinterpret_cast<uint32_t*>(&module_data[vm_entry_file_offset + 1]) = relative_offset;
     
-    auto save_to = routines_folder / (bin_name.string() + "-" + std::to_string(vm_entry_rva) + "-premature" + ".vtil");
+    std::stringstream hex_rva;
+    hex_rva << std::hex << vm_entry_rva;
+    auto save_to = routines_folder / (bin_name.string() + "-" + hex_rva.str() + "-premature" + ".vtil");
     vtil::save_routine(lifter.get_routine(), save_to);
-    save_to = routines_folder / (bin_name.string() + "-" + std::to_string(vm_entry_rva) + "-optimized" + ".vtil");
+    save_to = routines_folder / (bin_name.string() + "-" + hex_rva.str() + "-optimized" + ".vtil");
     vtil::routine* optimized = lifter.get_routine()->clone();
     vtil::optimizer::apply_all_profiled(optimized);
     vtil::save_routine(optimized, save_to);
     compile(optimized, assembly);
     
-    save_to = routines_folder / (bin_name.string() + "-" + std::to_string(vm_entry_rva) + ".txt");
+    save_to = routines_folder / (bin_name.string() + "-" + hex_rva.str() + ".txt");
     std::ofstream virtual_assembly(save_to);
     for (auto it = virt_rtn.m_blks.begin(); it != virt_rtn.m_blks.end(); ++it)
     {
