@@ -608,3 +608,26 @@ public:
 		std::cerr << "AsmJit error: " << message << "\n";
 	}
 };
+
+bool compile(vtil::routine* rtn, std::vector<uint8_t>& out)
+{
+	JitRuntime rt;
+	FileLogger logger(stdout);
+	DemoErrorHandler err;
+	CodeHolder code;
+
+	code.init(rt.environment());
+	x86::Compiler cc(&code);
+
+	cc.addFunc(FuncSignatureT<void>());
+	
+	routine_state state(cc, 0x1'4000'0000);
+	compile(rtn->entry_point, &state);
+
+	cc.endFunc();
+	cc.finalize();
+
+	CodeBuffer& buffer = code.sectionById(0)->buffer();
+	out.insert(out.end(), buffer.data(), buffer.data() + buffer.size());
+	return true;
+}

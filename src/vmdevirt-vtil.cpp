@@ -108,7 +108,32 @@ int __cdecl main(int argc, const char *argv[])
   std::filesystem::path bin_name = std::filesystem::path(parser.get<std::string>("bin")).filename();
   std::filesystem::remove_all(routines_folder);
   std::filesystem::create_directory(routines_folder);
-
+  
+  //module_data still contains the raw binary loaded from disk
+  //TODO: Handle the rare edge case that there isn't room for another section header
+  win::section_header_t* new_header_addr = 
+    img->get_nt_headers()->get_sections() + img->get_nt_headers()->file_header.num_sections;
+  img->get_nt_headers()->file_header.num_sections += 1;
+  memset(new_header_addr, 0, sizeof(win::section_header_t));
+  new_header_addr->virtual_address = 0x29420000;
+  new_header_addr->name = { 'v', 't', 'i', 'l', '_', 'a', 's', 'm' };
+  uint32_t section_alignment = img->get_nt_headers()->optional_header.section_alignment;
+  uint32_t file_alignment = img->get_nt_headers()->optional_header.file_alignment;
+  uint32_t old_size = module_data.size();
+  old_size = (old_size + file_alignment) & ~static_cast<size_t>(file_alignment - 1);
+  new_header_addr->ptr_raw_data = old_size;
+  
+  for (int i = 0; i < img->get_nt_headers()->file_header.num_sections; ++i)
+  {
+    for (int j = 0; j < 8; ++j)
+    {
+      std::cout << img->get_nt_headers()->get_section(i)->name.short_name[j];
+    }
+    std::cout << "\n";
+  }
+  
+  std::vector<uint8_t> assembly;
+  assembly.reserve(100'000'000);
   for (const auto& vm_entry_rva : vm_entry_rvas)
   {
     static int index = 0;
@@ -147,8 +172,39 @@ int __cdecl main(int argc, const char *argv[])
             "the console for the reason...\n");
       return -1;
     }
-    auto save_to = routines_folder / (bin_name.string() + "-" + std::to_string(vm_entry_rva) + ".vtil");
+
+    // Replace VMENTER with a jmp to the compiled asm
+    // Find file offset for virtual address
+    auto* vm_entry_section = std::find_if(img->get_nt_headers()->get_sections(), 
+      img->get_nt_headers()->get_sections() + img->get_nt_headers()->file_header.num_sections - 1,
+      [vm_entry_rva](const win::section_header_t& scn)
+      {
+        if (vm_entry_rva >= scn.virtual_address && vm_entry_rva < scn.virtual_address + scn.virtual_size)
+          return true;
+        else return false;
+      }
+    );
+    if (vm_entry_section == img->get_nt_headers()->get_sections() + img->get_nt_headers()->file_header.num_sections - 1)
+    {
+      std::printf("[!] couldn't find file offset for RVA %.8X\n", vm_entry_rva);
+      return -1;
+    }
+    uint32_t vm_entry_file_offset = 
+      vm_entry_rva - vm_entry_section->virtual_address + vm_entry_section->ptr_raw_data;
+    // change 10-byte PUSH XXXXXXXX CALL XXXXXXXX with CALL [devirtualized]
+    memset(module_data.data() + vm_entry_file_offset, 0x90, 10);
+    module_data[vm_entry_file_offset] = 0xe8;
+    uint32_t relative_offset = (new_header_addr->virtual_address - vm_entry_rva) +
+      assembly.size() - 5;
+    *reinterpret_cast<uint32_t*>(&module_data[vm_entry_file_offset + 1]) = relative_offset;
+    
+    auto save_to = routines_folder / (bin_name.string() + "-" + std::to_string(vm_entry_rva) + "-premature" + ".vtil");
     vtil::save_routine(lifter.get_routine(), save_to);
+    save_to = routines_folder / (bin_name.string() + "-" + std::to_string(vm_entry_rva) + "-optimized" + ".vtil");
+    vtil::routine* optimized = lifter.get_routine()->clone();
+    vtil::optimizer::apply_all_profiled(optimized);
+    vtil::save_routine(optimized, save_to);
+    compile(optimized, assembly);
     
     save_to = routines_folder / (bin_name.string() + "-" + std::to_string(vm_entry_rva) + ".txt");
     std::ofstream virtual_assembly(save_to);
@@ -165,4 +221,15 @@ int __cdecl main(int argc, const char *argv[])
       virtual_assembly << '\n';
     }
   }
+  new_header_addr->virtual_size = ((assembly.size() & 
+    ~static_cast<size_t>(section_alignment)) + section_alignment);
+  new_header_addr->size_raw_data = (assembly.size() & ~static_cast<size_t>(file_alignment - 1)) + file_alignment;
+  module_data.resize(((old_size + assembly.size()) & ~static_cast<size_t>(file_alignment - 1)) + file_alignment);
+  memcpy(module_data.data() + old_size, assembly.data(), assembly.size());
+  auto decompiled_bin_name = std::filesystem::path(parser.get<std::string>("bin")).remove_filename() /
+    (std::filesystem::path(bin_name).replace_extension("").string() + "-devirtualized" + bin_name.extension().string());
+  std::filesystem::remove(decompiled_bin_name);
+  std::ofstream decompiled_bin_file(decompiled_bin_name, std::ios::binary);
+  
+  decompiled_bin_file.write(reinterpret_cast<const char*>(module_data.data()), module_data.size());
 }
