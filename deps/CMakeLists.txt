@@ -26,3 +26,13 @@ endif()
 add_subdirectory(VTIL-Core)
 set(CMAKE_FOLDER ${CMKR_CMAKE_FOLDER})
 
+# asmjit
+set(CMKR_CMAKE_FOLDER ${CMAKE_FOLDER})
+if(CMAKE_FOLDER)
+	set(CMAKE_FOLDER "${CMAKE_FOLDER}/asmjit")
+else()
+	set(CMAKE_FOLDER asmjit)
+endif()
+add_subdirectory(asmjit)
+set(CMAKE_FOLDER ${CMKR_CMAKE_FOLDER})
+

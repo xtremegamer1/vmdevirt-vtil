@@ -1,4 +1,5 @@
 ﻿#include <vmdevirt-vtil.hpp>
+#include <vtil-compile.hpp>
 
 int __cdecl main(int argc, const char *argv[])
 {

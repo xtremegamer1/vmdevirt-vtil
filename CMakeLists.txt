@@ -27,6 +27,8 @@ if(CMKR_ROOT_PROJECT)
 	configure_file(cmake.toml cmake.toml COPYONLY)
 endif()
 
+set(ASMJIT_STATIC true)
+
 project(vmdevirt-vtil)
 
 # deps
@@ -47,9 +49,11 @@ list(APPEND vmdevirt-vtil_SOURCES
 	"src/lifters.cpp"
 	"src/vm-lifter.cpp"
 	"src/vmdevirt-vtil.cpp"
+	"src/vtil-compile.cpp"
 	"include/cli-parser.hpp"
 	"include/vm-lifter.hpp"
 	"include/vmdevirt-vtil.hpp"
+	"include/vtil-compile.hpp"
 	"include/zyreg_to_register_desc.hpp"
 )
 
@@ -84,6 +88,7 @@ target_include_directories(vmdevirt-vtil PRIVATE
 target_link_libraries(vmdevirt-vtil PRIVATE
 	vmemu
 	VTIL
+	asmjit::asmjit
 )
 
 unset(CMKR_TARGET)

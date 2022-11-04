@@ -1,6 +1,9 @@
 # Reference: https://build-cpp.github.io/cmkr/cmake-toml
 [project]
 name = "vmdevirt-vtil"
+cmake-before = """
+set(ASMJIT_STATIC true)
+"""
 
 [subdir.deps]
 
@@ -19,5 +22,6 @@ include-directories = ["include", "includes", "deps/VTIL-Core/VTIL/includes"]
 compile-features = ["cxx_std_20"]
 link-libraries = [
     "vmemu",
-    "VTIL"
+    "VTIL",
+    "asmjit::asmjit"
 ]
