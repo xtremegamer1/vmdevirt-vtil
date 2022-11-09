@@ -64,13 +64,14 @@ struct routine_state
 		switch (operand.bit_count())
 		{
 		// TODO: Handle sized register access
-		//
+		// Most x86 instructions do not support mixed operand sizes which causes problems...
 		case 1:
 		case 8:
 		case 16:
 		case 32:
 		case 64:
 			return cc.newGpq();
+			break;
 		default:
 			unreachable();
 		}
@@ -238,11 +239,23 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 
 			if (v.is_immediate())
 			{
-				state->cc.mov(dest, v.imm().ival);
+				if (v.size() == 8)
+				{
+					state->cc.mov(dest, state->tmp_imm(v.imm().ival));
+				}
+				else
+					state->cc.mov(dest, v.imm().ival);
 			}
 			else
 			{
-				state->cc.mov(dest, state->get_reg(v.reg()));
+				if (v.reg().local_id == X86_REG_CR0)
+				{
+					auto tmp = state->reg_for_size(64);
+					state->cc.mov(tmp, x86::cr0);
+					state->cc.mov(dest, state->get_reg(v.reg()));
+				}
+				else
+					state->cc.mov(dest, state->get_reg(v.reg()));
 			}
 		},
 	},
@@ -258,7 +271,16 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 			}
 			else
 			{
-				state->cc.mov(state->get_reg(dest), state->get_reg(src.reg()));
+				if (dest.local_id == X86_REG_DR7)
+					state->cc.mov(x86::dr7, state->get_reg(src.reg()));
+				else if (src.reg().local_id == X86_REG_DR7)
+					state->cc.mov(state->get_reg(dest), x86::dr7);
+				else if (dest.local_id == X86_REG_CR0)
+					state->cc.mov(x86::cr0, state->get_reg(src.reg()));
+				else if (src.reg().local_id == X86_REG_CR0)
+					state->cc.mov(state->get_reg(dest), x86::cr0);
+				else
+					state->cc.mov(state->get_reg(dest), state->get_reg(src.reg()));
 			}
 		},
 	},
@@ -364,8 +386,8 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 		ins::vexit,
 		[](const vtil::il_iterator& it, routine_state* state) {
 			// TODO: Call out into handler
-			//
-			state->cc.ret();
+			// What does that mean?
+			state->cc.endFunc();
 		},
 	},
 	{
@@ -498,7 +520,7 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 			auto data = it->operands[0].imm().uval;
 			// TODO: Are we guarenteed that the registers used by these
 			// embedded instructions are actually live at the point these are executed?
-			//
+			// This is a very difficult and headachy problem that I will return to later
 			state->cc.embedUInt8((uint8_t)data);
 		},
 	},
@@ -547,14 +569,22 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 		ins::ifs,
 		[](const vtil::il_iterator& it, routine_state* state) {
 			auto dest = it->operands[0].reg();
-			auto cc = it->operands[1];
+			auto cc = it->operands[1]; // Great name 😑
 			auto res = it->operands[2];
 
 			state->cc.xor_(state->get_reg(dest), state->get_reg(dest));
-			// TODO: CC can be an immediate, how does that work?
-			//
-			state->cc.test(state->get_reg(cc.reg()), state->get_reg(cc.reg()));
-
+			// x86 test instruction does not let you use 2 immediates...
+			if (cc.is_immediate())
+			{
+				auto& imm = cc.imm();
+				state->cc.push(imm.ival & ((1 << imm.bit_count) - 1));
+				x86::Mem condition(x86::rsp, 0); 
+				state->cc.test(condition, state->get_reg(cc.reg()));
+				state->cc.pop(condition); // This will restore the stack without setting flags
+			}
+			else
+				state->cc.test(state->get_reg(cc.reg()), state->get_reg(cc.reg()));
+					
 			if (res.is_immediate())
 			{
 				x86::Gp tmp = state->reg_for_size(res);
@@ -567,6 +597,26 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 			}
 		},
 	},
+	{ ins::brol, [](const vtil::il_iterator& it, routine_state* state)
+		{
+			auto src = it->operands[1];
+			auto dst = it->operands[0];
+
+			if (dst.is_immediate())
+				state->cc.rol(state->get_reg(dst.reg()), src.imm().u64);
+			else
+				state->cc.rol(state->get_reg(dst.reg()), state->get_reg(dst.reg()));
+		} },
+		{ ins::bror, [](const vtil::il_iterator& it, routine_state* state)
+		{
+			auto src = it->operands[1];
+			auto dst = it->operands[0];
+
+			if (dst.is_immediate())
+				state->cc.ror(state->get_reg(dst.reg()), src.imm().u64);
+			else
+				state->cc.ror(state->get_reg(dst.reg()), state->get_reg(dst.reg()));
+		} },
 	{ ins::vpinr, [](const vtil::il_iterator& it, routine_state* state)
 		{
 		} },
@@ -603,8 +653,10 @@ static void compile(vtil::basic_block* basic_block, routine_state* state)
 class DemoErrorHandler : public ErrorHandler
 {
 public:
+	bool error_occurred = false;
 	void handleError(Error err, const char* message, BaseEmitter* origin) override
 	{
+		error_occurred = true;
 		std::cerr << "AsmJit error: " << message << "\n";
 	}
 };
@@ -614,9 +666,12 @@ bool compile(vtil::routine* rtn, std::vector<uint8_t>& out)
 	JitRuntime rt;
 	FileLogger logger(stdout);
 	DemoErrorHandler err;
-	CodeHolder code;
+	CodeHolder code; 
 
 	code.init(rt.environment());
+	code.setErrorHandler(&err);
+
+	code.setLogger(&logger);
 	x86::Compiler cc(&code);
 
 	cc.addFunc(FuncSignatureT<void>());
@@ -624,9 +679,10 @@ bool compile(vtil::routine* rtn, std::vector<uint8_t>& out)
 	routine_state state(cc, 0x1'4000'0000);
 	compile(rtn->entry_point, &state);
 
-	cc.endFunc();
 	cc.finalize();
 
+	if (err.error_occurred)
+		return false;
 	CodeBuffer& buffer = code.sectionById(0)->buffer();
 	out.insert(out.end(), buffer.data(), buffer.data() + buffer.size());
 	return true;

@@ -27,6 +27,7 @@ class lifter_t
   const std::uintptr_t load_delta;
   const std::array<ZydisRegister, 16> vmentry_pushes;
   const vm::instrs::vrtn_t* const vmp_routine;
+  const uint32_t vm_entry_rva;
   vtil::routine* vtil_routine;
   vtil::basic_block* current_block;
   bool lift_handler(vm::instrs::vinstr_t v_instr);

@@ -4,7 +4,7 @@ namespace vm
 {
   lifter_t::lifter_t(const vm::instrs::vrtn_t* const routine, const vm::vmctx_t* const ctx) : 
     vmp_routine(routine), vmentry_pushes(ctx->get_vmentry_push_order()), img_base(ctx->m_image_base), 
-    load_delta(ctx->m_image_load_delta) {};
+    load_delta(ctx->m_image_load_delta), vm_entry_rva(ctx->m_vm_entry_rva) {};
   const vtil::routine* lifter_t::get_routine()
   {
     return vtil_routine;
