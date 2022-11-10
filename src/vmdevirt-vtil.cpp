@@ -1,6 +1,67 @@
 ﻿#include <vmdevirt-vtil.hpp>
 #include <vtil-compile.hpp>
 
+namespace fs = std::filesystem;
+
+const vtil::routine* devirtualize
+  (const std::uintptr_t module_base, const std::uintptr_t image_base, const std::uint32_t image_size, 
+   const std::uintptr_t vm_entry_rva, const fs::path& bin_name, const fs::path& save_to)
+{
+    vm::vmctx_t vmctx(module_base, image_base, image_size, vm_entry_rva);
+    if (!vmctx.init())
+    {
+      std::printf(
+          "[!] failed to init vmctx... this can be for many reasons..."
+          " try validating your vm entry rva... make sure the binary is "
+          "unpacked and is"
+          "protected with VMProtect 3...\n");
+      return nullptr;
+    }
+    vm::emu_t emu(&vmctx);
+    if (!emu.init())
+    {
+      std::printf(
+          "[!] failed to init vm::emu_t... read above in the console for the "
+          "reason...\n");
+      return nullptr;
+    }
+    vm::instrs::vrtn_t virt_rtn;
+    if (!emu.emulate(vm_entry_rva, virt_rtn))
+    {
+      std::printf(
+          "[!] failed to emulate virtualized routine... read above in the "
+          "console for the reason...\n");
+    }
+    std::printf("> traced %d virtual code blocks... \n", virt_rtn.m_blks.size());
+   
+    std::stringstream hex_rva;
+    hex_rva << std::hex << vm_entry_rva;
+    std::ofstream virtual_assembly(save_to);
+    for (auto it = virt_rtn.m_blks.begin(); it != virt_rtn.m_blks.end(); ++it)
+    {
+      virtual_assembly << "BLOCK_" << it - virt_rtn.m_blks.begin() << ":\n";
+      for (auto instr : it->m_vinstrs)
+      {
+        virtual_assembly << "SIZE:\t"<< std::dec  << +instr.stack_size << " " << vm::instrs::get_profile(instr.mnemonic)->name;
+        if (instr.imm.has_imm)
+          virtual_assembly << "\t" << std::hex << +instr.imm.val;
+        virtual_assembly << "\n";
+      }
+      virtual_assembly << '\n';
+    }
+    virtual_assembly.flush();
+    
+    vm::lifter_t lifter(&virt_rtn, &vmctx);
+    if (!lifter.lift())
+    {
+      std::printf(
+            "[!] failed to lift virtual routine to VTIL... read above in "
+            "the console for the reason...\n");
+      return nullptr;
+    }
+    return lifter.get_routine();
+}
+
 int __cdecl main(int argc, const char *argv[])
 {
   argparse::argument_parser_t parser("VMProtect 3 Static Devirtualization",
@@ -18,6 +79,10 @@ int __cdecl main(int argc, const char *argv[])
       .name("--bin")
       .description("path to unpacked virtualized binary...")
       .required(true);
+  parser.add_argument()
+      .name("--overwrite")
+      .description("deletes and overwrites existing .vtil files...")
+      .required(false);
   parser.add_argument().name("--out").description("output file name...");
   vm::utils::init();
   parser.enable_help();
@@ -103,11 +168,9 @@ int __cdecl main(int argc, const char *argv[])
                                         vm_entry_rvas.emplace_back(vmenter.rva);
                                       });
   }
-  std::filesystem::path routines_folder(parser.get<std::string>("bin"));
+  fs::path routines_folder(parser.get<std::string>("bin"));
   routines_folder = routines_folder.remove_filename() / "vms";
-  std::filesystem::path bin_name = std::filesystem::path(parser.get<std::string>("bin")).filename();
-  std::filesystem::remove_all(routines_folder);
-  std::filesystem::create_directory(routines_folder);
+  fs::path bin_name = fs::path(parser.get<std::string>("bin")).filename();
   
   //module_data still contains the raw binary loaded from disk
   //TODO: Handle the rare edge case that there isn't room for another section header
@@ -136,58 +199,34 @@ int __cdecl main(int argc, const char *argv[])
   assembly.reserve(100'000'000);
   for (const auto& vm_entry_rva : vm_entry_rvas)
   {
-    vm::vmctx_t vmctx(module_base, image_base, image_size, vm_entry_rva);
-    if (!vmctx.init())
-    {
-      std::printf(
-          "[!] failed to init vmctx... this can be for many reasons..."
-          " try validating your vm entry rva... make sure the binary is "
-          "unpacked and is"
-          "protected with VMProtect 3...\n");
-      return -1;
-    }
-    vm::emu_t emu(&vmctx);
-    if (!emu.init())
-    {
-      std::printf(
-          "[!] failed to init vm::emu_t... read above in the console for the "
-          "reason...\n");
-      return -1;
-    }
-    vm::instrs::vrtn_t virt_rtn;
-    if (!emu.emulate(vm_entry_rva, virt_rtn))
-    {
-      std::printf(
-          "[!] failed to emulate virtualized routine... read above in the "
-          "console for the reason...\n");
-    }
-    std::printf("> traced %d virtual code blocks... \n", virt_rtn.m_blks.size());
-   
     std::stringstream hex_rva;
     hex_rva << std::hex << vm_entry_rva;
-    auto save_to = routines_folder / (bin_name.string() + "-" + hex_rva.str() + ".txt");
-    std::ofstream virtual_assembly(save_to);
-    for (auto it = virt_rtn.m_blks.begin(); it != virt_rtn.m_blks.end(); ++it)
+    fs::path vtil_opt_routine_path = routines_folder / 
+      (bin_name.string() + "-" + hex_rva.str() + "-optimized.vtil");
+    fs::path vtil_prem_routine_path = routines_folder / 
+      (bin_name.string() + "-" + hex_rva.str() + "-premature.vtil");
+    const vtil::routine* prem{};
+    vtil::routine* opt{};
+    try
     {
-      virtual_assembly << "BLOCK_" << it - virt_rtn.m_blks.begin() << ":\n";
-      for (auto instr : it->m_vinstrs)
-      {
-        virtual_assembly << "SIZE:\t"<< std::dec  << +instr.stack_size << " " << vm::instrs::get_profile(instr.mnemonic)->name;
-        if (instr.imm.has_imm)
-          virtual_assembly << "\t" << std::hex << +instr.imm.val;
-        virtual_assembly << "\n";
-      }
-      virtual_assembly << '\n';
+      opt = vtil::load_routine(vtil_opt_routine_path);
     }
-    virtual_assembly.flush();
-    
-    vm::lifter_t lifter(&virt_rtn, &vmctx);
-    if (!lifter.lift())
+    catch(const std::exception& e)
     {
-      std::printf(
-            "[!] failed to lift virtual routine to VTIL... read above in "
-            "the console for the reason...\n");
-      return -1;
+      try
+      {
+        prem = vtil::load_routine(vtil_prem_routine_path);
+      }
+      catch (...)
+      {
+        prem = devirtualize(module_base, image_base, image_size, vm_entry_rva, bin_name, vtil_prem_routine_path);
+        if (!prem)
+        {
+          std::printf("[!] failed to devirtualize routine. Read up in the console for the reason.\n");
+          return -1;
+        }
+        vtil::save_routine(prem, vtil_prem_routine_path);
+      }
     }
 
     // Replace VMENTER with a jmp to the compiled asm
@@ -215,14 +254,15 @@ int __cdecl main(int argc, const char *argv[])
       assembly.size() - 5;
     *reinterpret_cast<uint32_t*>(&module_data[vm_entry_file_offset + 1]) = relative_offset;
     
-    save_to = routines_folder / (bin_name.string() + "-" + hex_rva.str() + "-premature" + ".vtil");
-    vtil::save_routine(lifter.get_routine(), save_to);
-    save_to = routines_folder / (bin_name.string() + "-" + hex_rva.str() + "-optimized" + ".vtil");
-    vtil::routine* optimized = lifter.get_routine()->clone();
-    vtil::optimizer::apply_all_profiled(optimized);
-    vtil::save_routine(optimized, save_to);
+    if (!opt)
+    {
+      opt = prem->clone();
+      vtil::optimizer::apply_all_profiled(opt);
+      vtil::save_routine(opt, vtil_opt_routine_path);
+    }
     // TODO: Handle failure of compilation
-    compile(optimized, assembly);
+    compile(opt, assembly);
+    delete prem; delete opt;
 
     //Replace address of jmp generated by compiler
     uint32_t ret_addr_offset = (vm_entry_rva + 10) - (new_header_addr->virtual_address + assembly.size() + 4);
@@ -231,14 +271,15 @@ int __cdecl main(int argc, const char *argv[])
     assembly.resize(assembly.size() + 4);
     *reinterpret_cast<uint32_t*>(&assembly[assembly.size() - 4]) = ret_addr_offset;
   }
+  // TODO: Clean up this fucking mess
   new_header_addr->virtual_size = ((assembly.size() & 
     ~static_cast<size_t>(section_alignment)) + section_alignment);
   new_header_addr->size_raw_data = (assembly.size() & ~static_cast<size_t>(file_alignment - 1)) + file_alignment;
   module_data.resize(((old_size + assembly.size()) & ~static_cast<size_t>(file_alignment - 1)) + file_alignment);
   memcpy(module_data.data() + old_size, assembly.data(), assembly.size());
-  auto decompiled_bin_name = std::filesystem::path(parser.get<std::string>("bin")).remove_filename() /
-    (std::filesystem::path(bin_name).replace_extension("").string() + "-devirtualized" + bin_name.extension().string());
-  std::filesystem::remove(decompiled_bin_name);
+  auto decompiled_bin_name = fs::path(parser.get<std::string>("bin")).remove_filename() /
+    (fs::path(bin_name).replace_extension("").string() + "-devirtualized" + bin_name.extension().string());
+  fs::remove(decompiled_bin_name);
   std::ofstream decompiled_bin_file(decompiled_bin_name, std::ios::binary);
   
   decompiled_bin_file.write(reinterpret_cast<const char*>(module_data.data()), module_data.size());

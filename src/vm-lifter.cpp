@@ -23,6 +23,8 @@ namespace vm
     current_block->push(vtil::make_imm<uint64_t>(0));
     vtil_routine = current_block->owner;
     //Lift the handlers basically
+    // TODO: Use branch info in the blocks in the routine to make sure jcc are forked properly for better optimization!
+    // A map of vip addresses to basic_blocks will probably be good for this
     for (const auto& blk : vmp_routine->m_blks)
     {
       if (&blk != &vmp_routine->m_blks[0])
