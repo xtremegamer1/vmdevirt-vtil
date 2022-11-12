@@ -90,10 +90,10 @@ struct routine_state
 
 		// TODO: Handle bit selectors on registers
 
-		log("get_reg: %s\n", operand.to_string());
+		//log("get_reg: %s\n", operand.to_string());
 		if (operand.is_physical())
 		{
-			log("\tis_physical\n");
+			//log("\tis_physical\n");
 			// Transform the VTIL register into an AsmJit one.
 			//
 			// TODO: This shouldnt be a separate condition, but just
@@ -101,7 +101,7 @@ struct routine_state
 			//
 			if (operand.is_stack_pointer())
 			{
-				log("\t\tis_stack_pointer\n");
+				//log("\t\tis_stack_pointer\n");
 				// TODO: this might cause problems, the stack
 				// of the program and of VTIL are shared
 				//
@@ -109,7 +109,7 @@ struct routine_state
 			}
 			else if (operand.is_flags())
 			{
-				log("\t\tis_flags: %d\n", flags_reg.isValid());
+				//log("\t\tis_flags: %d\n", flags_reg.isValid());
 				if (!flags_reg.isValid())
 				{
 					flags_reg = cc.newGpq();
@@ -119,7 +119,7 @@ struct routine_state
 			}
 			else
 			{
-				log("\t\tmachine_register: %s\n", vtil::amd64::name(operand.combined_id));
+				//log("\t\tmachine_register: %s\n", vtil::amd64::name(operand.combined_id));
 				switch (operand.combined_id)
 				{
 				case X86_REG_R8:
@@ -159,11 +159,11 @@ struct routine_state
 		}
 		else
 		{
-			log("\tis_virtual\n");
+			//log("\tis_virtual\n");
 
 			if (operand.is_image_base())
 			{
-				log("\t\tis_image_base\n");
+				//log("\t\tis_image_base\n");
 				// TODO: This obviously won't work for different
 				// base addresses
 				//
@@ -173,7 +173,7 @@ struct routine_state
 			}
 			else if (operand.is_flags())
 			{
-				log("\t\tis_flags\n");
+				//log("\t\tis_flags\n");
 				abort();
 			}
 			// Grab the register from the map, or create and insert otherwise.
@@ -325,6 +325,23 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 			else
 			{
 				state->cc.add(state->get_reg(lhs), state->get_reg(rhs.reg()));
+			}
+		},
+	},
+	{
+		ins::imul,
+		[](const vtil::il_iterator& instr, routine_state* state) {
+			auto& lhs = instr->operands[0].reg();
+			auto& rhs = instr->operands[1];
+			if (rhs.is_register())
+			{
+				state->cc.imul(state->get_reg(lhs), state->get_reg(rhs.reg()));
+			}
+			else
+			{
+				auto tmp = state->reg_for_size(lhs);
+				state->cc.mov(tmp, rhs.imm().u64);
+				state->cc.imul(state->get_reg(lhs), tmp);
 			}
 		},
 	},
@@ -527,9 +544,9 @@ static const std::map<vtil::instruction_desc, fn_instruction_compiler_t> handler
 #define MAP_CONDITIONAL(instrT, opcode, ropcode)                                    \
 	{                                                                               \
 		ins::instrT, [](const vtil::il_iterator& instr, routine_state* state) {     \
-			vtil::logger::log("1_is_imm: %d\n", instr->operands[0].is_immediate()); \
+			/*vtil::logger::log("1_is_imm: %d\n", instr->operands[0].is_immediate()); \
 			vtil::logger::log("2_is_imm: %d\n", instr->operands[1].is_immediate()); \
-			vtil::logger::log("3_is_imm: %d\n", instr->operands[2].is_immediate()); \
+			vtil::logger::log("3_is_imm: %d\n", instr->operands[2].is_immediate());*/ \
 			if (instr->operands[1].is_immediate())                                  \
 			{                                                                       \
 				x86::Gp tmp = state->reg_for_size(instr->operands[1]);              \
@@ -639,7 +656,7 @@ static void compile(vtil::basic_block* basic_block, routine_state* state)
 
 	for (auto it = basic_block->begin(); !it.is_end(); it++)
 	{
-		vtil::debug::dump(*it);
+		//vtil::debug::dump(*it);
 		auto handler = handler_table.find(*it->base);
 		if (handler == handler_table.end())
 		{
@@ -671,7 +688,7 @@ bool compile(vtil::routine* rtn, std::vector<uint8_t>& out)
 	code.init(rt.environment());
 	code.setErrorHandler(&err);
 
-	code.setLogger(&logger);
+	///code.setLogger(&logger);
 	x86::Compiler cc(&code);
 
 	cc.addFunc(FuncSignatureT<void>());

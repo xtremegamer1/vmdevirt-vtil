@@ -7,7 +7,7 @@
 
 namespace vm
 {
-typedef void(fn_lifter)(vm::instrs::vinstr_t);
+typedef void(fn_lifter)(vm::instrs::vinstr_t, vtil::basic_block*);
 class lifter_t
 {  
   static constexpr vtil::register_desc FLAG_CF = vtil::REG_FLAGS.select( 1, 0 );
@@ -19,18 +19,16 @@ class lifter_t
   static constexpr vtil::register_desc FLAG_OF = vtil::REG_FLAGS.select( 1, 11 );
 
   public:
-  lifter_t(const vm::instrs::vrtn_t* const routine, const vm::vmctx_t* const ctx);
+  lifter_t(const vm::instrs::vrtn_t* routine, const vm::vmctx_t* const ctx);
   bool lift();
   const vtil::routine* get_routine();  
   private:
-  const std::uintptr_t img_base; //The original non-relocated base
-  const std::uintptr_t load_delta;
-  const std::array<ZydisRegister, 16> vmentry_pushes;
-  const vm::instrs::vrtn_t* const vmp_routine;
-  const uint32_t vm_entry_rva;
+  const vm::vmctx_t* const m_ctx;
+  const vm::instrs::vrtn_t* vmp_routine;
   vtil::routine* vtil_routine;
-  vtil::basic_block* current_block;
-  bool lift_handler(vm::instrs::vinstr_t v_instr);
+  bool lift_handler(const vm::instrs::vinstr_t v_instr, vtil::basic_block* vtil_block);
+  bool recursive_lifter(const instrs::vblk_t*, vtil::basic_block*, 
+    std::unordered_map<std::uintptr_t, const instrs::vblk_t*>&);
   fn_lifter lifter_add, lifter_and, lifter_imul, lifter_jmp, lifter_lconst, lifter_lcr0, 
     lifter_lreg, lifter_lvsp, lifter_nand, lifter_nop, lifter_nor, lifter_or, 
     lifter_read, lifter_shl, lifter_shld, lifter_shr, lifter_shrd, lifter_sreg, 

@@ -13,7 +13,7 @@ static constexpr vtil::register_desc make_virtual_register( uint8_t context_offs
 	};
 }
 
-void vm::lifter_t::lifter_add(vm::instrs::vinstr_t instr) {
+void vm::lifter_t::lifter_add(vm::instrs::vinstr_t instr, vtil::basic_block* current_block) {
   auto [add_tmp_0, add_tmp_1, add_tmp_2] = current_block->tmp( instr.stack_size,
                                                                instr.stack_size,
                                                                instr.stack_size );
@@ -53,7 +53,7 @@ void vm::lifter_t::lifter_add(vm::instrs::vinstr_t instr) {
     ->push( add_tmp_1 )
     ->pushf();
 };
-void vm::lifter_t::lifter_and(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_and(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   auto [and_tmp_0, and_tmp_1, and_tmp_2] = current_block->tmp(64, instr.stack_size, instr.stack_size);
   current_block
@@ -69,42 +69,54 @@ void vm::lifter_t::lifter_and(vm::instrs::vinstr_t instr)
     ->tl(FLAG_SF, and_tmp_2, 0)
     ->pushf();
 };
-void vm::lifter_t::lifter_imul(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_imul(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
-  std::printf("This lifter is not implemented\n");    
-  exit(-1);
+  auto [tmp0, tmp1, tmp2] = 
+    current_block->tmp(instr.stack_size, instr.stack_size, instr.stack_size);
+  current_block
+    ->pop(tmp0)
+    ->pop(tmp1)
+    ->mov(tmp2, tmp0)
+
+    ->imul(tmp0, tmp1)
+    ->push(tmp0)
+    ->imulhi(tmp2, tmp0)
+    ->push(tmp2)
+
+    ->tne(FLAG_CF, tmp2, 0)
+    ->tne(FLAG_OF, tmp2, 0);
 };
-void vm::lifter_t::lifter_jmp(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_jmp(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   auto tmp = current_block->tmp(64);
   current_block
     ->pop(tmp)
     ->jmp(tmp);
 };
-void vm::lifter_t::lifter_lconst(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_lconst(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   auto tmp = current_block->tmp(instr.imm.size);
   current_block
     ->mov(tmp, vtil::make_imm(instr.imm.val))
     ->push(tmp); 
 };
-void vm::lifter_t::lifter_lcr0(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_lcr0(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   current_block->push(ZYDIS_REGISTER_CR0);
 };
-void vm::lifter_t::lifter_lreg(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_lreg(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   current_block->push(make_virtual_register(instr.imm.val, instr.stack_size));
 };
-void vm::lifter_t::lifter_sreg(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_sreg(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   current_block->pop(make_virtual_register(instr.imm.val, instr.stack_size));
 }
-void vm::lifter_t::lifter_lvsp(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_lvsp(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   current_block->push(vtil::REG_SP);  
 };
-void vm::lifter_t::lifter_nand(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_nand(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   auto [tmp0, tmp1, tmp2, fl0, fl1] = current_block->tmp(instr.stack_size, instr.stack_size, instr.stack_size, 1, 1);
   current_block
@@ -121,11 +133,11 @@ void vm::lifter_t::lifter_nand(vm::instrs::vinstr_t instr)
     ->tl(FLAG_SF, tmp0, 0)
     ->pushf();
 };
-void vm::lifter_t::lifter_nop(vm::instrs::vinstr_t instr) 
+void vm::lifter_t::lifter_nop(vm::instrs::vinstr_t instr, vtil::basic_block* current_block) 
 {
   current_block->nop();
 };
-void vm::lifter_t::lifter_nor(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_nor(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   auto [tmp0, tmp1, tmp2, fl0, fl1] = current_block->tmp(instr.stack_size, instr.stack_size, instr.stack_size, 1, 1);
   current_block
@@ -142,7 +154,7 @@ void vm::lifter_t::lifter_nor(vm::instrs::vinstr_t instr)
     ->tl(FLAG_SF, tmp0, 0)
     ->pushf();
 };
-void vm::lifter_t::lifter_or(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_or(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   auto [and_tmp_0, and_tmp_1, and_tmp_2] = current_block->tmp(64, instr.stack_size, instr.stack_size);
   current_block
@@ -158,7 +170,7 @@ void vm::lifter_t::lifter_or(vm::instrs::vinstr_t instr)
     ->tl(FLAG_SF, and_tmp_2, 0)
     ->pushf();
 };
-void vm::lifter_t::lifter_read(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_read(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   auto [tmp0, tmp1] = current_block->tmp(64, instr.stack_size);
   current_block
@@ -166,7 +178,7 @@ void vm::lifter_t::lifter_read(vm::instrs::vinstr_t instr)
     ->ldd(tmp1, tmp0, 0)
     ->push(tmp1);
 };
-void vm::lifter_t::lifter_shl(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_shl(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   auto [tmp0, tmp1, tmp2] = current_block->tmp(instr.stack_size, instr.stack_size, 8);
   auto cf = tmp2.select(1, tmp2.bit_count - 1); // Set to most significant bit 
@@ -188,7 +200,7 @@ void vm::lifter_t::lifter_shl(vm::instrs::vinstr_t instr)
     ->pushf();
 };
 
-void vm::lifter_t::lifter_shr(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_shr(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   auto [tmp0, tmp1, tmp2] = current_block->tmp(instr.stack_size, instr.stack_size, 8);
   auto cf = tmp2.select(1, tmp2.bit_count - 1); // Set to most significant bit 
@@ -210,7 +222,7 @@ void vm::lifter_t::lifter_shr(vm::instrs::vinstr_t instr)
     ->pushf();
 };
 
-void vm::lifter_t::lifter_shrd(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_shrd(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   auto [tmp0, tmp1, tmp2, tmp3] = current_block->tmp(instr.stack_size, instr.stack_size, 8, 8);
   current_block
@@ -236,7 +248,7 @@ void vm::lifter_t::lifter_shrd(vm::instrs::vinstr_t instr)
     ->pushf();
 }
 
-void vm::lifter_t::lifter_shld(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_shld(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   auto [tmp0, tmp1, tmp2, tmp3] = current_block->tmp(instr.stack_size, instr.stack_size, 8, 8);
   current_block
@@ -262,7 +274,7 @@ void vm::lifter_t::lifter_shld(vm::instrs::vinstr_t instr)
     ->pushf();
 }
 
-void vm::lifter_t::lifter_svsp(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_svsp(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   auto tmp = current_block->tmp(64);
   current_block
@@ -270,7 +282,7 @@ void vm::lifter_t::lifter_svsp(vm::instrs::vinstr_t instr)
     ->mov(vtil::REG_SP, tmp);
 }
 
-void vm::lifter_t::lifter_write(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_write(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   auto [tmp0, tmp1] = current_block->tmp(64, instr.stack_size);
   current_block
@@ -279,7 +291,7 @@ void vm::lifter_t::lifter_write(vm::instrs::vinstr_t instr)
     ->str(tmp0, 0, tmp1); 
 }
 
-void vm::lifter_t::lifter_writedr7(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_writedr7(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
   auto tmp = current_block->tmp(64);
   current_block
@@ -287,9 +299,10 @@ void vm::lifter_t::lifter_writedr7(vm::instrs::vinstr_t instr)
     ->mov(X86_REG_DR7, tmp);
 }
 
-void vm::lifter_t::lifter_vmexit(vm::instrs::vinstr_t instr)
+void vm::lifter_t::lifter_vmexit(vm::instrs::vinstr_t instr, vtil::basic_block* current_block)
 {
-  for (auto it = vmentry_pushes.rbegin(); it != vmentry_pushes.rend(); it++)
+  auto& vmentry_push_order = m_ctx->get_vmentry_push_order();
+  for (auto it = vmentry_push_order.rbegin(); it != vmentry_push_order.rend(); it++)
     current_block
       ->pop(*it);
   auto tmp = current_block->tmp(64);
