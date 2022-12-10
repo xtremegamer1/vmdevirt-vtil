@@ -40,7 +40,7 @@ const vtil::routine* devirtualize
       (bin_name.string() + "-" + hex_rva.str() + ".txt"));
     for (auto it = virt_rtn.m_blks.begin(); it != virt_rtn.m_blks.end(); ++it)
     {
-      virtual_assembly << "BLOCK_" << it - virt_rtn.m_blks.begin() << ":\n";
+      virtual_assembly << "BLOCK_" << std::hex << it->m_vip.img_based << ":\n";
       for (auto instr : it->m_vinstrs)
       {
         virtual_assembly << "SIZE:\t"<< std::dec  << +instr.stack_size << " " << vm::instrs::get_profile(instr.mnemonic)->name;
@@ -156,6 +156,7 @@ int __cdecl main(int argc, const char *argv[])
   }
   std::vector<std::uintptr_t> vm_entry_rvas;
   auto vmentry_paramter = parser.get<std::string>("vmentry");
+  std::printf("module base: %p\n", module_base);
   if (!vmentry_paramter.empty())
     vm_entry_rvas.emplace_back(std::strtoull(parser.get<std::string>("vmentry").c_str(), nullptr, 16));
   else
@@ -219,6 +220,7 @@ int __cdecl main(int argc, const char *argv[])
     }
     catch(const std::exception& e)
     {
+      std::printf("Could not load optimized routine: %s Falling back to premature routine\n", e.what());
       try
       {
         prem = vtil::load_routine(vtil_prem_routine_path);
@@ -255,7 +257,7 @@ int __cdecl main(int argc, const char *argv[])
       vm_entry_rva - vm_entry_section->virtual_address + vm_entry_section->ptr_raw_data;
     // change 10-byte PUSH XXXXXXXX CALL XXXXXXXX with JMP [devirtualized]
     memset(module_data.data() + vm_entry_file_offset, 0x90, 10);
-    module_data[vm_entry_file_offset] = 0xe8;
+    module_data[vm_entry_file_offset] = 0xe9;
     uint32_t relative_offset = (new_header_addr->virtual_address - vm_entry_rva) +
       assembly.size() - 5;
     *reinterpret_cast<uint32_t*>(&module_data[vm_entry_file_offset + 1]) = relative_offset;
